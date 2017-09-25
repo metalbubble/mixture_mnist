@@ -54,6 +54,7 @@ def main():
 
     # train multiple models
     err_models = []
+    err_all = 0.9
     for i in range(args.num_models):
         args.seed = i
         print 'training model %d' % i
@@ -61,12 +62,13 @@ def main():
         err_models.append((err_train, err_test))
 
     # bookmaking the all the errors
-    with open(args.save + '/errors.txt','w') as f:
-        output = ['id\terr_test\terr_train']
-        for i, item in enumerate(err_models):
-            output.append('d\t%.2f\t%.2f')
-        f.write('\n'.join(output))
 
+    output = ['id\terr_test\terr_train']
+    with open(args.save + '/errors.txt','w') as f:
+        for i, item in enumerate(err_models):
+            output.append('%d\t%.2f\t%.2f'%(i, item[1], item[0]))
+        f.write('\n'.join(output))
+    print '\n'.join(output)
 
 def train_net(args, trainLoader, testLoader):
     torch.manual_seed(args.seed)

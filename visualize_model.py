@@ -85,7 +85,7 @@ def visualize(args, net, testLoader):
     montage_units = []
     heatmap_units = []
     for unitID in range(maxvalues_all.shape[1]):
-        print 'segmenting unit%d' % unitID
+        #print 'segmenting unit%d' % unitID
         maxvalues_unit = maxvalues_all[:, unitID]
         features_unit = np.squeeze(features[:, unitID, :, :])
         montage_unit, heatmap_unit = generate_unitmap(images_test, features_unit, maxvalues_unit)
@@ -121,7 +121,7 @@ def output_result(args, montage_units, heatmap_units):
 
     with open(html_file,'w') as f:
         f.write('\n'.join(output_lines))
-    print 'http://places.csail.mit.edu/deepscene/small-projects/mixture_mnist/' + html_file
+    #print 'http://places.csail.mit.edu/deepscene/small-projects/mixture_mnist/' + html_file
 
 def generate_unitmap(images, features_unit, maxvalues_unit):
     idx_sorted = np.argsort(maxvalues_unit) # this is the ascending order
@@ -163,7 +163,7 @@ def extractfeature(args, net, testLoader):
                 size_features = size_features + (num_samples,)
                 size_features = size_features + feat_batch.shape[1:]
                 features_results[i] = np.zeros(size_features)
-                print features_results[i].shape
+                #print features_results[i].shape
         start_idx = batch_idx*args.batchSz
         end_idx = min((batch_idx+1)*args.batchSz, num_samples)
         labels_results[start_idx:end_idx] = target.data.cpu().numpy()
@@ -172,7 +172,7 @@ def extractfeature(args, net, testLoader):
 
     return features_results, np.concatenate(images_results, axis=0), labels_results
 
-def create_montage(images,features, column_size=10, margin=3):
+def create_montage(images,features, column_size=10, margin=2):
     # a function to create a montage of images
     if len(images.shape) == 3:
         # if grey image, add a singlex channel
