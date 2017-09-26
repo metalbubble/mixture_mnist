@@ -11,9 +11,6 @@ dependencies:
   - scipy
   - pytorch
   - torchvision
-  - scikit-learn
   - matplotlib
   - jupyter
   - pillow
-  - tqdm
-  - nbstripout
