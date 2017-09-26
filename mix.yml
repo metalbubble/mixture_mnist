@@ -1,0 +1,19 @@
+name: mix
+channels:
+  - conda-forge
+  - soumith
+  - bioconda
+  - menpo
+dependencies:
+  - python=2.7
+  - opencv3
+  - numpy
+  - scipy
+  - pytorch
+  - torchvision
+  - scikit-learn
+  - matplotlib
+  - jupyter
+  - pillow
+  - tqdm
+  - nbstripout
