@@ -11,6 +11,7 @@ import codecs
 import cv2
 import numpy as np
 import pdb
+import random
 from torch.utils.data import DataLoader, TensorDataset
 
 class MNIST(data.Dataset):
@@ -142,13 +143,61 @@ class MNIST(data.Dataset):
 
         print('Done!')
 
-    def generate_pairwise(self, newdata=False):
-        filename = 'data/split_pairwisedigit.npz'
-        if newdata== True or not os.path.exists(filename):
-            print('generate new training data for pairwise split...')
-            images_train, labels_train, class_labels = self.pairwise_digits()
-            images_test,  labels_test, _  = self.pairwise_digits(train=0)
-            np.savez(filename, images_train=images_train, labels_train=labels_train, images_test=images_test, labels_test=labels_test, class_labels=class_labels)
+    def dataset_classes(self, setname):
+        if setname == 'pairwise':
+            return None
+        if setname == 'xor':
+            return [[(0, 0), (1, 1)], [(0, 1)]]
+        if setname == 'greater':
+            return [
+              [(0,0)],
+              [(1,1),(1,0)],
+              [(2,2),(2,1),(2,0)],
+              [(3,3),(3,2),(3,1),(3,0)],
+              [(4,4),(4,3),(4,2),(4,1),(4,0)],
+              [(5,5),(5,4),(5,3),(5,2),(5,1),(5,0)],
+              [(6,6),(6,5),(6,4),(6,3),(6,2),(6,1),(6,0)],
+              [(7,7),(7,6),(7,5),(7,4),(7,3),(7,2),(7,1),(7,0)],
+              [(8,8),(8,7),(8,6),(8,5),(8,4),(8,3),(8,2),(8,1),(8,0)],
+              [(9,9),(9,8),(9,7),(9,6),(9,5),(9,4),(9,3),(9,2),(9,1),(9,0)]]
+        if setname == 'sum':
+            return [
+              [(0,0)],
+              [(1,0)],
+              [(2,0),(1,1)],
+              [(3,0),(2,1)],
+              [(4,0),(3,1),(2,2)],
+              [(5,0),(4,1),(3,2)],
+              [(6,0),(5,1),(4,2),(3,3)],
+              [(7,0),(6,1),(5,2),(4,3)],
+              [(8,0),(7,1),(6,2),(5,3),(4,4)],
+              [(9,0),(8,1),(7,2),(6,3),(5,4)],
+              [(9,1),(8,2),(7,3),(6,4),(5,5)],
+              [(9,2),(8,3),(7,4),(6,5)],
+              [(9,3),(8,4),(7,5),(6,6)],
+              [(9,4),(8,5),(7,6)],
+              [(9,5),(8,6),(7,7)],
+              [(9,6),(8,7)],
+              [(9,7),(8,8)],
+              [(9,8)],
+              [(9,9)]]
+        assert False, "Unrecognized setname %s" % setname
+
+    def generate_pairwise(self, setname='pairwise', newdata=False):
+        filename = 'data/split_%sdigit.npz' % setname
+        if newdata or not os.path.exists(filename):
+            print('generate new training data for %s split...' % setname)
+            class_labels = self.dataset_classes(setname)
+            images_train, labels_train, class_labels = self.pairwise_digits(
+                    class_labels=class_labels)
+            images_test,  labels_test, _  = self.pairwise_digits(train=0,
+                    class_labels=class_labels)
+            np.savez(filename,
+                    images_train=images_train,
+                    labels_train=labels_train,
+                    images_test=images_test,
+                    labels_test=labels_test,
+                    class_labels=class_labels)
         else:
             print('load exisiting pairwise split from ' + filename)
             npzfile = np.load(filename)
@@ -159,7 +208,7 @@ class MNIST(data.Dataset):
             class_labels = npzfile['class_labels']
         return images_train, labels_train, images_test, labels_test, class_labels
 
-    def pairwise_digits(self, train=1,regenerate=True):
+    def pairwise_digits(self, train=1, class_labels=None):
         # generate the pairwise samples: total number of classes = 45
         size_digit = (12, 12)
         size_canvas = (32, 32)
@@ -179,25 +228,27 @@ class MNIST(data.Dataset):
             indices_digit.append(np.squeeze(np.where(data_labels == i)))
 
         # class labels
-        class_labels = []
-        for i in range(9):
-            for j in range(i+1, 10):
-                class_labels.append((i,j))
+        if class_labels is None:
+            class_labels = []
+            for i in range(9):
+                for j in range(i+1, 10):
+                    class_labels.append([(i,j)])
 
         data_mixture = []
         labels_mixture = []
         for classIDX  in range(len(class_labels)):
-            curPair = class_labels[classIDX]
             curLabels = np.ones(num_digit_perclass, dtype=np.uint8) * classIDX
             labels_mixture.append(curLabels)
             canvas_class = np.zeros((num_digit_perclass, size_canvas[0], size_canvas[1]), dtype=np.uint8)
             randIDX = np.int64(np.ceil(np.random.rand(num_digit_perclass, 4) * range_rand)) # the random spatial location
-            IDX_rand_sampleA = np.random.choice(indices_digit[curPair[0]], num_digit_perclass, replace=True)
-            IDX_rand_sampleB = np.random.choice(indices_digit[curPair[1]], num_digit_perclass, replace=True)
             for i in range(num_digit_perclass):
                 # create one mixture sample by adding two digits random-spatially
-                sample1 = data_images[IDX_rand_sampleA[i]]
-                sample2 = data_images[IDX_rand_sampleB[i]]
+                print(class_labels[classIDX])
+                curPair = random.choice(class_labels[classIDX])
+                IDX_rand_sampleA = np.random.choice(indices_digit[curPair[0]])
+                IDX_rand_sampleB = np.random.choice(indices_digit[curPair[1]])
+                sample1 = data_images[IDX_rand_sampleA]
+                sample2 = data_images[IDX_rand_sampleB]
                 sample1 = cv2.resize(sample1, size_digit)
                 sample2 = cv2.resize(sample2, size_digit)
                 canvas_sample = np.zeros((size_canvas[0], size_canvas[1]), dtype=np.uint8)
@@ -214,9 +265,9 @@ class MNIST(data.Dataset):
         labels_mixture = labels_mixture[shuffleIDX,]
         return data_mixture, labels_mixture, class_labels
 
-    def generate_split_pairwise(self, batch_size=128, newdata=False):
+    def generate_split_pairwise(self, batch_size=128, setname='pairwise', newdata=False):
     # generate the data split from the original MNIST data
-        images_train, labels_train, images_test, labels_test, class_labels  = self.generate_pairwise(newdata=newdata)
+        images_train, labels_train, images_test, labels_test, class_labels  = self.generate_pairwise(setname=setname, newdata=newdata)
         images_train = images_train.astype(np.float32)
         images_test = images_test.astype(np.float32)
         images_train = images_train.reshape((images_train.shape[0], 1, images_train.shape[1], images_train.shape[2]))

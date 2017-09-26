@@ -15,7 +15,7 @@ import os
 import sys
 import math
 import shutil
-import setproctitle
+# import setproctitle
 import scipy.io
 import numpy as np
 import pdb
@@ -29,10 +29,11 @@ def main():
     parser.add_argument('--batchSz', type=int, default=128)
     parser.add_argument('--num_models', type=int, default=10)
     parser.add_argument('--model', default='baseline')
+    parser.add_argument('--directory', default='baseline')
+    parser.add_argument('--setname', default='pairwise')
     parser.add_argument('--nEpochs', type=int, default=5)
     parser.add_argument('--no-cuda', action='store_true')
     parser.add_argument('--save', default='model')
-    parser.add_argument('--nClasses', type=int, default=5)
     parser.add_argument('--nTokens', type=int, default=10)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--opt', type=str, default='sgd',
@@ -43,13 +44,13 @@ def main():
     if not os.path.exists('model'):
         os.mkdir('model')
 
-    args.save = 'model/' + args.model
+    args.save = 'model/' + args.directory
     if not os.path.exists(args.save):
         os.mkdir(args.save)
 
     # load the data loader
-    data_mnist = dataloader_mnist.MNIST('data')
-    trainLoader, testLoader, class_labels = data_mnist.generate_split_pairwise(batch_size = args.batchSz)
+    data_mnist = dataloader_mnist.MNIST('data', download=True)
+    trainLoader, testLoader, class_labels = data_mnist.generate_split_pairwise(batch_size=args.batchSz, setname=args.setname)
     args.nClasses = len(class_labels)
 
     # train multiple models
@@ -57,7 +58,7 @@ def main():
     err_all = 0.9
     for i in range(args.num_models):
         args.seed = i
-        print 'training model %d' % i
+        print('training model %d' % i)
         err_train, err_test = train_net(args, trainLoader, testLoader)
         err_models.append((err_train, err_test))
 

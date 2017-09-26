@@ -21,6 +21,8 @@ import dataloader_mnist
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='baseline')
+    parser.add_argument('--directory', default='baseline')
+    parser.add_argument('--setname', default='pairwise')
     parser.add_argument('--num_models', type=int, default=10)
     parser.add_argument('--batchSz', type=int, default=128)
     parser.add_argument('--no-cuda', action='store_true')
@@ -37,19 +39,24 @@ def main():
 
 
     data_mnist = dataloader_mnist.MNIST('data')
-    _, testLoader, class_labels = data_mnist.generate_split_pairwise(batch_size = args.batchSz)
+    print('Loading %s' % args.setname)
+    _, testLoader, class_labels = data_mnist.generate_split_pairwise(
+            batch_size = args.batchSz, setname=args.setname)
     args.nClasses = len(class_labels)
+    print('Finished loading %s' % args.setname)
 
     for i in range(args.num_models):
-        print 'testing model:%s %d' %(args.model, i)
-        net = torch.load('model/%s/%d_modelbest.pth'%(args.model, i))
-        args.output = 'output/%s/%d'%(args.model, i)
-        root_folder = 'output/%s' % args.model
+        print 'testing model:%s %s %d' %(args.model, args.setname, i)
+        net = torch.load('model/%s/%d_modelbest.pth'%(args.directory, i))
+        print 'finished loading model'
+        args.output = 'output/%s/%d'%(args.directory, i)
+        root_folder = 'output/%s' % args.directory
         if not os.path.exists(root_folder):
             os.mkdir(root_folder)
 
         if args.cuda:
             net.cuda()
+        print 'before net.eval'
         net.eval()
         #err_test = test(args, net, testLoader)
         visualize(args, net, testLoader)
@@ -76,6 +83,7 @@ def test(args, net, testLoader):
         test_loss, incorrect, nTotal, err))
 
 def visualize(args, net, testLoader):
+    print('extracting features')
     features_set, images_test, labels = extractfeature(args, net, testLoader)
     features = features_set[0]
     # step1: get the max idx for each unit
