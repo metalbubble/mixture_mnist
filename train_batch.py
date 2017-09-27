@@ -29,8 +29,8 @@ def main():
     parser.add_argument('--batchSz', type=int, default=128)
     parser.add_argument('--num_models', type=int, default=10)
     parser.add_argument('--model', default='baseline')
-    parser.add_argument('--directory', default='baseline')
     parser.add_argument('--setname', default='pairwise')
+    parser.add_argument('--newdata', default=False)
     parser.add_argument('--nEpochs', type=int, default=5)
     parser.add_argument('--no-cuda', action='store_true')
     parser.add_argument('--save', default='model')
@@ -44,18 +44,18 @@ def main():
     if not os.path.exists('model'):
         os.mkdir('model')
 
-    args.save = 'model/' + args.directory
+    # use the args.model + args.setname as the unique experimentID
+    args.save = 'model/%s-%s'%(args.model, args.setname)
     if not os.path.exists(args.save):
         os.mkdir(args.save)
 
     # load the data loader
     data_mnist = dataloader_mnist.MNIST('data', download=True)
-    trainLoader, testLoader, class_labels = data_mnist.generate_split_pairwise(batch_size=args.batchSz, setname=args.setname)
+    trainLoader, testLoader, class_labels, oracles = data_mnist.generate_split(batch_size=args.batchSz, setname=args.setname, newdata=args.newdata)
     args.nClasses = len(class_labels)
 
     # train multiple models
     err_models = []
-    err_all = 0.9
     for i in range(args.num_models):
         args.seed = i
         print('training model %d' % i)

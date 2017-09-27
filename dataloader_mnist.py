@@ -145,7 +145,13 @@ class MNIST(data.Dataset):
 
     def dataset_classes(self, setname):
         if setname == 'pairwise':
-            return None
+            # permute the two digits, so totally 45 classes
+            class_labels = []
+            for i in range(9):
+                for j in range(i+1, 10):
+                    class_labels.append([(i,j)])
+            return class_labels
+
         if setname == 'xor':
             return [[(0, 0), (1, 1)], [(0, 1)]]
         if setname == 'greater':
@@ -183,32 +189,37 @@ class MNIST(data.Dataset):
               [(9,9)]]
         assert False, "Unrecognized setname %s" % setname
 
-    def generate_pairwise(self, setname='pairwise', newdata=False):
-        filename = 'data/split_%sdigit.npz' % setname
+    def generate_trainval(self, setname=None, newdata=False):
+        filename = 'data/split_%s_digit.npz' % setname
         if newdata or not os.path.exists(filename):
             print('generate new training data for %s split...' % setname)
+            # this will determine the combination of classes
             class_labels = self.dataset_classes(setname)
-            images_train, labels_train, class_labels = self.pairwise_digits(
+            images_train, labels_train, oracle_train, class_labels = self.return_pairwise_digits(
                     class_labels=class_labels)
-            images_test,  labels_test, _  = self.pairwise_digits(train=0,
+            images_test,  labels_test, oracle_test, _  = self.return_pairwise_digits(train=0,
                     class_labels=class_labels)
             np.savez(filename,
                     images_train=images_train,
                     labels_train=labels_train,
                     images_test=images_test,
                     labels_test=labels_test,
+                    oracle_test=oracle_test,
+                    oracle_train=oracle_train,
                     class_labels=class_labels)
         else:
-            print('load exisiting pairwise split from ' + filename)
+            print('load exisiting %s split from %s' % (setname, filename))
             npzfile = np.load(filename)
             images_train = npzfile['images_train']
             labels_train = npzfile['labels_train']
             images_test = npzfile['images_test']
             labels_test = npzfile['labels_test']
             class_labels = npzfile['class_labels']
-        return images_train, labels_train, images_test, labels_test, class_labels
+            oracle_train = npzfile['oracle_train']
+            oracle_test = npzfile['oracle_test']
+        return images_train, images_test, labels_train, labels_test, oracle_train, oracle_test, class_labels
 
-    def pairwise_digits(self, train=1, class_labels=None):
+    def return_pairwise_digits(self,  class_labels, train=1):
         # generate the pairwise samples: total number of classes = 45
         size_digit = (12, 12)
         size_canvas = (32, 32)
@@ -227,23 +238,20 @@ class MNIST(data.Dataset):
         for i in range(10):
             indices_digit.append(np.squeeze(np.where(data_labels == i)))
 
-        # class labels
-        if class_labels is None:
-            class_labels = []
-            for i in range(9):
-                for j in range(i+1, 10):
-                    class_labels.append([(i,j)])
-
         data_mixture = []
         labels_mixture = []
+        oracle_mixture = [] # this variable contains the digits shown in each sample, for evaluating the precision and recall of unit
         for classIDX  in range(len(class_labels)):
             curLabels = np.ones(num_digit_perclass, dtype=np.uint8) * classIDX
             labels_mixture.append(curLabels)
             canvas_class = np.zeros((num_digit_perclass, size_canvas[0], size_canvas[1]), dtype=np.uint8)
             randIDX = np.int64(np.ceil(np.random.rand(num_digit_perclass, 4) * range_rand)) # the random spatial location
+            oracle_class = np.zeros((num_digit_perclass, 10), dtype=np.uint8) # one hot vector for 10 digits
+            for j in range(len(class_labels[classIDX])):
+                # generate the oracle variable
+                oracle_class[:, class_labels[classIDX][j]] = 1
             for i in range(num_digit_perclass):
                 # create one mixture sample by adding two digits random-spatially
-                print(class_labels[classIDX])
                 curPair = random.choice(class_labels[classIDX])
                 IDX_rand_sampleA = np.random.choice(indices_digit[curPair[0]])
                 IDX_rand_sampleB = np.random.choice(indices_digit[curPair[1]])
@@ -257,26 +265,30 @@ class MNIST(data.Dataset):
                 canvas_sample[canvas_sample>255] = 255
                 canvas_class[i] = canvas_sample
             data_mixture.append(canvas_class)
+            oracle_mixture.append(oracle_class)
         data_mixture = np.concatenate(data_mixture, axis=0)
         labels_mixture = np.concatenate(labels_mixture, axis=0)
+        oracle_mixture = np.concatenate(oracle_mixture, axis=0)
         # shuffle the samples
         shuffleIDX = np.random.permutation(labels_mixture.shape[0])
         data_mixture = data_mixture[shuffleIDX,]
         labels_mixture = labels_mixture[shuffleIDX,]
-        return data_mixture, labels_mixture, class_labels
+        oracle_mixture = oracle_mixture[shuffleIDX,]
+        return data_mixture, labels_mixture, oracle_mixture, class_labels
 
-    def generate_split_pairwise(self, batch_size=128, setname='pairwise', newdata=False):
-    # generate the data split from the original MNIST data
-        images_train, labels_train, images_test, labels_test, class_labels  = self.generate_pairwise(setname=setname, newdata=newdata)
+    def generate_split(self, batch_size=128, setname='pairwise', newdata=False):
+        # generate the data split from the original MNIST data
+        images_train, images_test, labels_train, labels_test, oracle_train, oracle_test, class_labels  = self.generate_trainval(setname=setname, newdata=newdata)
         images_train = images_train.astype(np.float32)
         images_test = images_test.astype(np.float32)
         images_train = images_train.reshape((images_train.shape[0], 1, images_train.shape[1], images_train.shape[2]))
         images_test = images_test.reshape((images_test.shape[0], 1, images_test.shape[1], images_test.shape[2]))
+        # create the train data loader and val data loader
         train_d = TensorDataset(torch.from_numpy(images_train), torch.from_numpy(labels_train))
         trainLoader = DataLoader(train_d, batch_size = batch_size, shuffle=True)
         val_d = TensorDataset(torch.from_numpy(images_test), torch.from_numpy(labels_test))
         testLoader = DataLoader(val_d, batch_size = batch_size, shuffle=False)
-        return trainLoader, testLoader, class_labels
+        return trainLoader, testLoader, class_labels, (oracle_train, oracle_test)
 
 
 
