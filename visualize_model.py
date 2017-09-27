@@ -105,17 +105,19 @@ def visualize(args, net, testLoader, oracle_test):
     maxvalues_all = np.max(np.max(features,3),2) # (num_sample, num_units)
     montage_units = []
     heatmap_units = []
+    pr_units = []
     for unitID in range(maxvalues_all.shape[1]):
         #print 'segmenting unit%d' % unitID
         maxvalues_unit = maxvalues_all[:, unitID]
-        precision, recall = compute_precision_recall(maxvalues_unit, oracle_test) # compute the precision and recall
+        pr_threshs = compute_precision_recall(maxvalues_unit, oracle_test) # compute the precision and recall
         features_unit = np.squeeze(features[:, unitID, :, :])
         montage_unit, heatmap_unit = generate_unitmap(images_test, features_unit, maxvalues_unit)
         montage_units.append(montage_unit)
         heatmap_units.append(heatmap_unit)
-    output_result(args, montage_units, heatmap_units)
+        pr_units.append(pr_threshs)
+    output_result(args, montage_units, heatmap_units, pr_units)
 
-def output_result(args, montage_units, heatmap_units):
+def output_result(args, montage_units, heatmap_units, pr_units):
     # output the result to HTML
     html_file = '%s.html' % args.output
     directory_unit = '%s' % args.output
@@ -124,12 +126,17 @@ def output_result(args, montage_units, heatmap_units):
 
     output_lines = []
     for unitID, montage_unit in enumerate(montage_units):
+        precision_unit, recall_unit = pr_units[unitID]
+        metric = recall_unit
+        idx_digit = np.argsort(metric) # this is the ascending order
+        idx_digit = idx_digit[::-1]
+
         filename_unit = '%s/unit%02d.jpg' % (args.output, unitID)
         filename_mask = '%s/mask_unit%02d.jpg' % (args.output, unitID)
         link_unit = '/'.join(filename_unit.split('/')[2:])
         link_mask = '/'.join(filename_mask.split('/')[2:])
 
-        output_lines.append('<p>Unit%d<br>Top activated images:<br><img src="%s"><br>Activation:<br><img src="%s"></p>'%(unitID, link_unit, link_mask))
+        output_lines.append('<p>Unit%02d for detecting digit %d with recall@100=%.2f<br>Top activated images:<br><img src="%s"><br>Activation:<br><img src="%s"></p>'%(unitID, idx_digit[0], metric[idx_digit[0]], link_unit, link_mask))
         # output montage of top ranked images
         montage_unit_output = np.transpose(montage_unit, (1,2,0))
         montage_unit_output = np.squeeze(montage_unit_output)
@@ -146,12 +153,17 @@ def output_result(args, montage_units, heatmap_units):
     #print 'http://places.csail.mit.edu/deepscene/small-projects/mixture_mnist/' + html_file
 
 def compute_precision_recall(responses_unit, oracle_test):
-    thresh = [10, 20, 50, 100]
+    threshs = [10,20,100] # threshold for the recall
     idx_sorted = np.argsort(responses_unit) # this is the ascending order
     idx_sorted = idx_sorted[::-1]
-
     gt_sorted = oracle_test[idx_sorted, :]
-    return 0,0
+    totals = np.sum(gt_sorted, axis=0) # the total number of gt in each bin
+    pr_threshs = []
+    for t in threshs:
+        recall = np.sum(gt_sorted[:t,:], axis=0) *1.0 / t
+        precision = np.sum(gt_sorted[:t,:], axis=0) * 1.0 / totals
+        pr_threshs.append((precision, recall))
+    return pr_threshs[2] # return the threshold at 100
 
 def generate_unitmap(images, features_unit, maxvalues_unit):
     idx_sorted = np.argsort(maxvalues_unit) # this is the ascending order
