@@ -247,12 +247,11 @@ class MNIST(data.Dataset):
             canvas_class = np.zeros((num_digit_perclass, size_canvas[0], size_canvas[1]), dtype=np.uint8)
             randIDX = np.int64(np.ceil(np.random.rand(num_digit_perclass, 4) * range_rand)) # the random spatial location
             oracle_class = np.zeros((num_digit_perclass, 10), dtype=np.uint8) # one hot vector for 10 digits
-            for j in range(len(class_labels[classIDX])):
-                # generate the oracle variable
-                oracle_class[:, class_labels[classIDX][j]] = 1
             for i in range(num_digit_perclass):
                 # create one mixture sample by adding two digits random-spatially
                 curPair = random.choice(class_labels[classIDX])
+                oracle_class[i,curPair[0]] = 1
+                oracle_class[i,curPair[1]] = 1
                 IDX_rand_sampleA = np.random.choice(indices_digit[curPair[0]])
                 IDX_rand_sampleB = np.random.choice(indices_digit[curPair[1]])
                 sample1 = data_images[IDX_rand_sampleA]
@@ -269,6 +268,7 @@ class MNIST(data.Dataset):
         data_mixture = np.concatenate(data_mixture, axis=0)
         labels_mixture = np.concatenate(labels_mixture, axis=0)
         oracle_mixture = np.concatenate(oracle_mixture, axis=0)
+        pdb.set_trace()
         # shuffle the samples
         shuffleIDX = np.random.permutation(labels_mixture.shape[0])
         data_mixture = data_mixture[shuffleIDX,]
