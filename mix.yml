@@ -2,15 +2,13 @@ name: mix
 channels:
   - conda-forge
   - soumith
-  - bioconda
   - menpo
 dependencies:
   - python=2.7
+  - pytorch
+  - torchvision
+  - cuda80
   - opencv3
   - numpy
   - scipy
-  - pytorch
-  - torchvision
   - matplotlib
-  - jupyter
-  - pillow
