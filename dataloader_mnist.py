@@ -187,6 +187,12 @@ class MNIST(data.Dataset):
               [(9,7),(8,8)],
               [(9,8)],
               [(9,9)]]
+        if setname == 'redundancy':
+            # generate the split with redundant digits
+            return 0
+        if setname == '10digits':
+            return [[(0)],[(1)],[(2)],[(3)],[(4)],[(5)],[(6)],[(7)],[(8)],[(9)]]
+            # baseline: there will be only one digit in each sample
         assert False, "Unrecognized setname %s" % setname
 
     def generate_trainval(self, setname=None, newdata=False):
@@ -245,30 +251,29 @@ class MNIST(data.Dataset):
             curLabels = np.ones(num_digit_perclass, dtype=np.uint8) * classIDX
             labels_mixture.append(curLabels)
             canvas_class = np.zeros((num_digit_perclass, size_canvas[0], size_canvas[1]), dtype=np.uint8)
-            randIDX = np.int64(np.ceil(np.random.rand(num_digit_perclass, 4) * range_rand)) # the random spatial location
             oracle_class = np.zeros((num_digit_perclass, 10), dtype=np.uint8) # one hot vector for 10 digits
             for i in range(num_digit_perclass):
-                # create one mixture sample by adding two digits random-spatially
-                curPair = random.choice(class_labels[classIDX])
-                oracle_class[i,curPair[0]] = 1
-                oracle_class[i,curPair[1]] = 1
-                IDX_rand_sampleA = np.random.choice(indices_digit[curPair[0]])
-                IDX_rand_sampleB = np.random.choice(indices_digit[curPair[1]])
-                sample1 = data_images[IDX_rand_sampleA]
-                sample2 = data_images[IDX_rand_sampleB]
-                sample1 = cv2.resize(sample1, size_digit)
-                sample2 = cv2.resize(sample2, size_digit)
+                # create one mixture sample by adding any number of digits random-spatially
+                curIndice = random.choice(class_labels[classIDX])
+                if isinstance(curIndice, int):
+                    curIndice = [curIndice]
+
                 canvas_sample = np.zeros((size_canvas[0], size_canvas[1]), dtype=np.uint8)
-                canvas_sample[randIDX[i,0]:randIDX[i,0]+size_digit[0], randIDX[i,1]:randIDX[i,1]+size_digit[1]] = canvas_sample[randIDX[i,0]:randIDX[i,0]+size_digit[0], randIDX[i,1]:randIDX[i,1]+size_digit[1]]+sample1
-                canvas_sample[randIDX[i,2]:randIDX[i,2]+size_digit[0], randIDX[i,3]:randIDX[i,3]+size_digit[1]] = canvas_sample[randIDX[i,2]:randIDX[i,2]+size_digit[0], randIDX[i,3]:randIDX[i,3]+size_digit[1]]+sample2
+                for idx in curIndice:
+                    randIDX = np.int64(np.ceil(np.random.rand(2) * range_rand)) # the random spatial location
+                    oracle_class[i,idx] = 1
+                    IDX_rand_sample = np.random.choice(indices_digit[idx])
+                    sample = data_images[IDX_rand_sample]
+                    sample = cv2.resize(sample, size_digit)
+                    canvas_sample[randIDX[0]:randIDX[0]+size_digit[0], randIDX[1]:randIDX[1]+size_digit[1]] = canvas_sample[randIDX[0]:randIDX[0]+size_digit[0], randIDX[1]:randIDX[1]+size_digit[1]]+sample
+                    canvas_class[i] = canvas_sample
+
                 canvas_sample[canvas_sample>255] = 255
-                canvas_class[i] = canvas_sample
             data_mixture.append(canvas_class)
             oracle_mixture.append(oracle_class)
         data_mixture = np.concatenate(data_mixture, axis=0)
         labels_mixture = np.concatenate(labels_mixture, axis=0)
         oracle_mixture = np.concatenate(oracle_mixture, axis=0)
-        pdb.set_trace()
         # shuffle the samples
         shuffleIDX = np.random.permutation(labels_mixture.shape[0])
         data_mixture = data_mixture[shuffleIDX,]

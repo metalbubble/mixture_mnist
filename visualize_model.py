@@ -28,6 +28,8 @@ def main():
     parser.add_argument('--nClasses', type=int, default=45)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--output', default='')
+    parser.add_argument('--prefix', default='')
+    parser.add_argument('--class_labels', default='')
 
     args = parser.parse_args()
 
@@ -36,18 +38,24 @@ def main():
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
 
-
     data_mnist = dataloader_mnist.MNIST('data')
     print('Loading %s' % args.setname)
     _, testLoader, class_labels, oracles = data_mnist.generate_split(
             batch_size = args.batchSz, setname=args.setname)
     args.nClasses = len(class_labels)
+    args.class_labels = class_labels
     oracle_test = oracles[1] # the first is the oracle for train, and second is the oracle for test.
     print('Finished loading %s' % args.setname)
+    if args.prefix != '':
+        args.setname = args.setname + '-' + args.prefix
 
     for i in range(args.num_models):
         print 'testing model:%s %s %d' %(args.model, args.setname, i)
-        net = torch.load('model/%s-%s/%d_modelbest.pth'%(args.model,args.setname, i))
+        modelfile = 'model/%s-%s/%d_modelbest.pth' % (args.model,args.setname, i)
+        if not os.path.isfile(modelfile):
+            print('no file:', modelfile)
+            continue
+        net = torch.load(modelfile)
         print 'finished loading model'
         args.output = 'output/%s-%s/%03d'%(args.model, args.setname, i)
         root_folder = 'output/%s-%s' % (args.model, args.setname)
@@ -115,9 +123,9 @@ def visualize(args, net, testLoader, oracle_test):
         montage_units.append(montage_unit)
         heatmap_units.append(heatmap_unit)
         pr_units.append(pr_threshs)
-    output_result(args, montage_units, heatmap_units, pr_units)
+    output_result(args, montage_units, heatmap_units, pr_units, acc_class)
 
-def output_result(args, montage_units, heatmap_units, pr_units):
+def output_result(args, montage_units, heatmap_units, pr_units, acc_class):
     # output the result to HTML
     html_file = '%s.html' % args.output
     directory_unit = '%s' % args.output
@@ -125,6 +133,7 @@ def output_result(args, montage_units, heatmap_units, pr_units):
         os.mkdir(directory_unit)
 
     output_lines = []
+    values_sort = []
     for unitID, montage_unit in enumerate(montage_units):
         recall10 = pr_units[unitID][0][1]
         recall100 = pr_units[unitID][1][1]
@@ -134,7 +143,7 @@ def output_result(args, montage_units, heatmap_units, pr_units):
         idx_digit_100 = np.argsort(recall100) # this is the ascending order
         idx_digit_100 = idx_digit_100[::-1]
 
-
+        values_sort.append(recall10[idx_digit_10[0]])
         filename_unit = '%s/unit%02d.jpg' % (args.output, unitID)
         filename_mask = '%s/mask_unit%02d.jpg' % (args.output, unitID)
         link_unit = '/'.join(filename_unit.split('/')[2:])
@@ -152,8 +161,19 @@ def output_result(args, montage_units, heatmap_units, pr_units):
         img = Image.fromarray(montage_unit_output)
         img.save(filename_mask)
 
+    # sort the unit by their precision
+    idx_sorted = np.argsort(values_sort)
+    print html_file
     with open(html_file,'w') as f:
-        f.write('\n'.join(output_lines))
+        f.write('<h4>Class Accuracy:%.2f</h4>'%np.mean(acc_class))
+        idx_sorted_class = np.argsort(acc_class)
+        output_acc = ' '.join(['class%02d (%s):%.2f, '%(i, np.array2string(args.class_labels[i])[1:-1], acc_class[i]) for i in idx_sorted_class])
+        f.write(output_acc)
+        f.write('<h4>Unit Precision and Visualization</h4>')
+        for i in idx_sorted:
+            f.write('\n')
+            f.write(output_lines[i])
+
     #print 'http://places.csail.mit.edu/deepscene/small-projects/mixture_mnist/' + html_file
 
 def compute_precision_recall(responses_unit, oracle_test):

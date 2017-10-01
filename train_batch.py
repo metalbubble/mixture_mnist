@@ -27,7 +27,7 @@ import dataloader_mnist
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--batchSz', type=int, default=128)
-    parser.add_argument('--num_models', type=int, default=10)
+    parser.add_argument('--num_models', type=int, default=3)
     parser.add_argument('--model', default='baseline')
     parser.add_argument('--setname', default='pairwise')
     parser.add_argument('--newdata', default=False)
@@ -44,15 +44,19 @@ def main():
     if not os.path.exists('model'):
         os.mkdir('model')
 
-    # use the args.model + args.setname as the unique experimentID
-    args.save = 'model/%s-%s'%(args.model, args.setname)
-    if not os.path.exists(args.save):
-        os.mkdir(args.save)
-
     # load the data loader
     data_mnist = dataloader_mnist.MNIST('data', download=True)
     trainLoader, testLoader, class_labels, oracles = data_mnist.generate_split(batch_size=args.batchSz, setname=args.setname, newdata=args.newdata)
     args.nClasses = len(class_labels)
+
+    # use the args.model + args.setname as the unique experimentID
+    if args.nTokens != 10:
+        args.save = 'model/%s-%s-token%d'%(args.model, args.setname, args.nTokens)
+    else:
+        args.save = 'model/%s-%s'%(args.model, args.setname)
+    if not os.path.exists(args.save):
+        os.mkdir(args.save)
+
 
     # train multiple models
     err_models = []
