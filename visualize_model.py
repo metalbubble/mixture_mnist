@@ -56,7 +56,6 @@ def main():
             print('no file:', modelfile)
             continue
         net = torch.load(modelfile)
-        print 'finished loading model'
         args.output = 'output/%s-%s/%03d'%(args.model, args.setname, i)
         root_folder = 'output/%s-%s' % (args.model, args.setname)
 
@@ -101,6 +100,10 @@ def test(args, net, testLoader):
     return conf_mat / conf_mat.sum(1).clip(min=1e-12)[:, None]
 
 def visualize(args, net, testLoader, oracle_test):
+    params = list(net.parameters())
+    weight_softmax = np.squeeze(params[-2].data.cpu().numpy()) # (num_class, num_unit)
+
+
     print('running test')
     confusion_matrix = test(args, net, testLoader)
     acc_class = confusion_matrix.diagonal()
@@ -123,9 +126,9 @@ def visualize(args, net, testLoader, oracle_test):
         montage_units.append(montage_unit)
         heatmap_units.append(heatmap_unit)
         pr_units.append(pr_threshs)
-    output_result(args, montage_units, heatmap_units, pr_units, acc_class)
+    output_result(args, montage_units, heatmap_units, pr_units, acc_class, weight_softmax)
 
-def output_result(args, montage_units, heatmap_units, pr_units, acc_class):
+def output_result(args, montage_units, heatmap_units, pr_units, acc_class, weight_softmax):
     # output the result to HTML
     html_file = '%s.html' % args.output
     directory_unit = '%s' % args.output
@@ -165,12 +168,27 @@ def output_result(args, montage_units, heatmap_units, pr_units, acc_class):
     idx_sorted = np.argsort(values_sort)
     print html_file
     with open(html_file,'w') as f:
+        # output the class-linked units
+        output_classlink = []
+        for i in range(weight_softmax.shape[0]):
+            weight_class = weight_softmax[i]
+            idx_sorted_units = np.argsort(weight_class)[::-1]
+            top_line = ['Unit%02d (%.2f)'%(idx_sorted_units[j], weight_class[idx_sorted_units[j]]) for j in range(3)]
+            output_classlink.append(top_line)
+
+        # output the class accuracy and their most contributed units
         f.write('<h4>Class Accuracy:%.2f</h4>'%np.mean(acc_class))
         idx_sorted_class = np.argsort(acc_class)
-        output_acc = ' '.join(['class%02d (%s):%.2f, '%(i, np.array2string(args.class_labels[i])[1:-1], acc_class[i]) for i in idx_sorted_class])
-        f.write(output_acc)
+        output_acc = ['<strong>Class%02d</strong> (%s):acc=%.2f, %s'%(i, np.array2string(args.class_labels[i])[1:-1], acc_class[i], ','.join(output_classlink[i])) for i in idx_sorted_class]
+
+        # not plot all of them
+        if len(output_acc) > 15:
+            interval = int(len(output_acc)/15)
+            output_acc = output_acc[::interval]
+        f.write('<br>'.join(output_acc))
+        # output the unit precision and visualization
         f.write('<h4>Unit Precision and Visualization</h4>')
-        for i in idx_sorted:
+        for i in range(len(output_lines)):
             f.write('\n')
             f.write(output_lines[i])
 
